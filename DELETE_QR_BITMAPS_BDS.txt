@@ -1,0 +1,27 @@
+METHOD DELETE_QR_BITMAPS_BDS.
+  DATA: l_name TYPE stxbitmaps-tdname.
+
+
+  DO 1 TIMES.
+    l_name = g_bds_name1.
+
+    CHECK l_name IS NOT INITIAL.
+
+    CALL FUNCTION 'SAPSCRIPT_DELETE_GRAPHIC_BDS'
+      EXPORTING
+        i_object       = g_object            "i_object     "'GRAPHICS'
+        i_name         = l_name
+        i_id           = g_id                "i_id         "'BMAP'
+        i_btype        = g_btype             "i_btype      "'BMON'
+        dialog         = abap_false
+      EXCEPTIONS
+        enqueue_failed = 1
+        delete_failed  = 2
+        not_found      = 3
+        canceled       = 4
+        OTHERS         = 5.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+  ENDDO.
+ENDMETHOD.

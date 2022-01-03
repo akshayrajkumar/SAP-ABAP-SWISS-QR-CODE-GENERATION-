@@ -1,0 +1,5 @@
+METHOD constructor.
+*  IF iv_country = 'SWISS'.
+    g_qr_bds_name = 'ZZ_QRCODE_SWISSQR'. "for swiss
+*  ENDIF.
+ENDMETHOD.

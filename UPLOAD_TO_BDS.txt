@@ -1,0 +1,213 @@
+METHOD UPLOAD_TO_BDS.
+
+
+* BDS handling
+  CONSTANTS:
+    co_bds_classname TYPE sbdst_classname VALUE 'DEVC_STXD_BITMAP',
+    co_bds_classtype TYPE sbdst_classtype VALUE 'OT',          " others
+    co_bds_mimetype  TYPE bds_mimetp      VALUE 'application/octet-stream'.
+
+  DATA: l_bytecount     TYPE i,
+        l_bds_bytecount TYPE i,
+        ls_stxbitmaps   TYPE stxbitmaps.
+
+  DATA: lr_bds_object     TYPE REF TO cl_bds_document_set,
+        lt_bds_content    TYPE sbdst_content,
+        wa_bds_components TYPE LINE OF sbdst_components,
+        lt_bds_components TYPE sbdst_components,
+        wa_bds_signature  TYPE LINE OF sbdst_signature,
+        lt_bds_signature  TYPE sbdst_signature,
+        wa_bds_properties TYPE LINE OF sbdst_properties,
+        lt_bds_properties TYPE sbdst_properties.
+
+  DATA: lt_bin_data TYPE solix_tab.
+
+  IF i_bitmap IS INITIAL.
+    CLEAR c_tdname.
+    RETURN.
+  ENDIF.
+
+  lt_bin_data = cl_bcs_convert=>xstring_to_solix( iv_xstring = i_bitmap ).
+  l_bytecount = xstrlen( i_bitmap ).
+
+
+  ls_stxbitmaps-tdname   = c_tdname.
+  ls_stxbitmaps-tdobject = i_tdobject.
+  ls_stxbitmaps-tdid     = i_tdid.
+
+* save image as black and white bitmap
+  ls_stxbitmaps-tdbtype    = i_tdbtype.
+  ls_stxbitmaps-resident   = abap_false.
+  ls_stxbitmaps-autoheight = abap_true.
+
+  SELECT SINGLE docid FROM stxbitmaps
+                INTO ls_stxbitmaps-docid
+                WHERE tdobject = ls_stxbitmaps-tdobject
+                  AND tdname   = ls_stxbitmaps-tdname
+                  AND tdid     = ls_stxbitmaps-tdid
+                  AND tdbtype  = ls_stxbitmaps-tdbtype.
+  IF sy-subrc = 0.
+*   A bitmap with this key already exists.
+*   The image is deleted and created again.
+    CALL FUNCTION 'SAPSCRIPT_DELETE_GRAPHIC_BDS'
+      EXPORTING
+        i_object       = ls_stxbitmaps-tdobject
+        i_name         = ls_stxbitmaps-tdname
+        i_id           = ls_stxbitmaps-tdid
+        i_btype        = ls_stxbitmaps-tdbtype
+        dialog         = abap_false
+      EXCEPTIONS
+        enqueue_failed = 1
+        delete_failed  = 2
+        not_found      = 3
+        canceled       = 4
+        OTHERS         = 5.
+  ENDIF.
+
+  CLEAR ls_stxbitmaps-docid.
+
+* enqueue the bitmap
+  CALL FUNCTION 'ENQUEUE_ESSGRABDS'
+    EXPORTING
+      tdobject     = ls_stxbitmaps-tdobject
+      tdname       = ls_stxbitmaps-tdname
+      tdid         = ls_stxbitmaps-tdid
+      tdbtype      = ls_stxbitmaps-tdbtype
+    EXCEPTIONS
+      foreign_lock = 1
+      OTHERS       = 2.
+
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  CALL FUNCTION 'SAPSCRIPT_CONVERT_BITMAP_BDS'
+    EXPORTING
+      color                     = abap_false
+      format                    = 'BMP'
+      resident                  = abap_false
+      bitmap_bytecount          = l_bytecount
+      compress_bitmap           = abap_false
+    IMPORTING
+      width_tw                  = ls_stxbitmaps-widthtw
+      height_tw                 = ls_stxbitmaps-heighttw
+      width_pix                 = ls_stxbitmaps-widthpix
+      height_pix                = ls_stxbitmaps-heightpix
+      dpi                       = ls_stxbitmaps-resolution
+      bds_bytecount             = l_bds_bytecount
+    TABLES
+      bitmap_file               = lt_bin_data
+      bitmap_file_bds           = lt_bds_content
+    EXCEPTIONS
+      format_not_supported      = 1
+      no_bmp_file               = 2
+      bmperr_invalid_format     = 3
+      bmperr_no_colortable      = 4
+      bmperr_unsup_compression  = 5
+      bmperr_corrupt_rle_data   = 6
+      tifferr_invalid_format    = 7
+      tifferr_no_colortable     = 8
+      tifferr_unsup_compression = 9
+      bmperr_eof                = 10
+      OTHERS                    = 11.
+
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+* dequeue the bitmap
+    CALL FUNCTION 'DEQUEUE_ESSGRABDS'
+      EXPORTING
+        tdobject = ls_stxbitmaps-tdobject
+        tdname   = ls_stxbitmaps-tdname
+        tdid     = ls_stxbitmaps-tdid
+        tdbtype  = ls_stxbitmaps-tdbtype.
+    RETURN.
+*    EXIT.
+  ENDIF.
+
+* Save bitmap in BDS
+  CREATE OBJECT lr_bds_object.
+
+  wa_bds_components-doc_count  = '1'.
+  wa_bds_components-comp_count = '1'.
+  wa_bds_components-mimetype   = co_bds_mimetype.
+  wa_bds_components-comp_size  = l_bds_bytecount.
+  APPEND wa_bds_components TO lt_bds_components.
+
+  wa_bds_signature-doc_count   = '1'.
+  APPEND wa_bds_signature TO lt_bds_signature.
+
+  CALL METHOD lr_bds_object->create_with_table
+    EXPORTING
+      classname  = co_bds_classname
+      classtype  = co_bds_classtype
+      components = lt_bds_components
+      content    = lt_bds_content
+    CHANGING
+      signature  = lt_bds_signature
+    EXCEPTIONS
+      OTHERS     = 1.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+* dequeue the bitmap
+    CALL FUNCTION 'DEQUEUE_ESSGRABDS'
+      EXPORTING
+        tdobject = ls_stxbitmaps-tdobject
+        tdname   = ls_stxbitmaps-tdname
+        tdid     = ls_stxbitmaps-tdid
+        tdbtype  = ls_stxbitmaps-tdbtype.
+    RETURN.
+*    EXIT.
+  ENDIF.
+
+  READ TABLE lt_bds_signature INDEX 1 INTO wa_bds_signature
+                              TRANSPORTING doc_id.
+  IF sy-subrc = 0.
+    ls_stxbitmaps-docid = wa_bds_signature-doc_id.
+  ELSE.
+* Implement suitable error handling here
+* dequeue the bitmap
+    CALL FUNCTION 'DEQUEUE_ESSGRABDS'
+      EXPORTING
+        tdobject = ls_stxbitmaps-tdobject
+        tdname   = ls_stxbitmaps-tdname
+        tdid     = ls_stxbitmaps-tdid
+        tdbtype  = ls_stxbitmaps-tdbtype.
+    RETURN.
+*    EXIT.
+  ENDIF.
+
+* Save bitmap header in STXBITPMAPS
+  INSERT INTO stxbitmaps VALUES ls_stxbitmaps.
+  IF sy-subrc <> 0.
+    UPDATE stxbitmaps FROM ls_stxbitmaps.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+  ENDIF.
+
+* Set description in BDS attributes
+  wa_bds_properties-prop_name  = text-001.
+  wa_bds_properties-prop_value = text-002.
+  APPEND wa_bds_properties TO lt_bds_properties.
+
+  CALL METHOD lr_bds_object->change_properties
+    EXPORTING
+      classname  = co_bds_classname
+      classtype  = co_bds_classtype
+      doc_id     = ls_stxbitmaps-docid
+      doc_ver_no = '1'
+      doc_var_id = '1'
+    CHANGING
+      properties = lt_bds_properties
+    EXCEPTIONS
+      OTHERS     = 1.
+
+* dequeue the bitmap
+  CALL FUNCTION 'DEQUEUE_ESSGRABDS'
+    EXPORTING
+      tdobject = ls_stxbitmaps-tdobject
+      tdname   = ls_stxbitmaps-tdname
+      tdid     = ls_stxbitmaps-tdid
+      tdbtype  = ls_stxbitmaps-tdbtype.
+
+ENDMETHOD.

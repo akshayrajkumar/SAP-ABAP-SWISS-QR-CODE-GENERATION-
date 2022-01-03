@@ -1,0 +1,47 @@
+METHOD GET_QRIMAGE.
+  DATA: mod_size TYPE i,
+        e_bitmap TYPE xstring,
+        lv_size_ok TYPE flag .
+
+  mod_size = 10.
+
+  DO 4 TIMES.
+    TRY.
+        CALL METHOD cl_rstx_barcode_renderer=>qr_code
+          EXPORTING
+            i_module_size      = mod_size
+            i_mode             = 'U'
+            i_error_correction = 'M'
+            i_rotation         = 0
+            i_barcode_text     = i_qrstring
+          IMPORTING
+            e_bitmap           = e_bitmap.
+      CATCH cx_rstx_barcode_renderer .
+        SUBTRACT 1 FROM mod_size.
+        CONTINUE.
+    ENDTRY.
+
+    CALL METHOD me->calculate_mod_size
+      EXPORTING
+        i_bitmap      = e_bitmap
+      IMPORTING
+        e_size_ok     = lv_size_ok
+      CHANGING
+        c_module_size = mod_size.
+
+    IF lv_size_ok EQ abap_true.
+      EXIT.
+    ENDIF.
+  ENDDO.
+
+  CALL METHOD me->save_qr_bitmaps_bds
+    EXPORTING
+      i_bitmap1   = e_bitmap  
+    IMPORTING
+      e_bds_name1 = g_bds_name1
+      e_object    = g_object
+      e_id        = g_id
+      e_btype     = g_btype.
+
+
+ENDMETHOD.

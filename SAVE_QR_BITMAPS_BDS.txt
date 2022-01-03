@@ -1,0 +1,64 @@
+METHOD SAVE_QR_BITMAPS_BDS.
+
+  DATA: o_ip TYPE REF TO cl_fxs_image_processor,
+        lv_img_conv_data TYPE xstring,
+        lv_hndl TYPE i.
+* The Inernet Graphic Service (CL_IGS_IMAGE_CONVERTER) cannot process the bitmaps with color depth 1 bit.
+* With 8 bit color depth, it would work.
+  IF 1 = 2.
+    DATA: lv_mimetype TYPE string.
+    DATA: lv_xres TYPE i.
+    DATA: lv_yres TYPE i.
+    DATA: lv_xdpi TYPE i.
+    DATA: lv_ydpi TYPE i.
+    DATA: lv_bitdepth TYPE i.
+    DATA: p_width TYPE i VALUE 1087.
+    DATA: p_height TYPE i VALUE 1087.
+* Get FXS-Object
+    CREATE OBJECT o_ip.
+
+* add picture to fxs processor
+    lv_hndl = o_ip->add_image( iv_data = i_bitmap1 ).
+
+* get picture info
+    o_ip->get_info(
+      EXPORTING
+       iv_handle   = lv_hndl
+      IMPORTING
+       ev_mimetype = lv_mimetype
+       ev_xres     = lv_xres
+       ev_yres     = lv_yres
+       ev_xdpi     = lv_xdpi
+       ev_ydpi     = lv_ydpi
+       ev_bitdepth = lv_bitdepth ).
+
+    p_width = lv_xres * p_width / lv_yres.
+
+* Resize
+    o_ip->resize(
+      EXPORTING
+       iv_handle = lv_hndl
+       iv_xres   = p_width
+       iv_yres   = p_height ).
+
+* Get binary data (xstring) of the picture
+    lv_img_conv_data = o_ip->get_image( lv_hndl ).
+  ENDIF.
+
+*--------------------------------------------------------------------*
+* Upload to BDS
+  e_object    = 'GRAPHICS'.
+  e_id        = 'BMAP'.
+  e_btype     = 'BMON'.               "save image as black and white bitmap
+  e_bds_name1 = G_QR_BDS_NAME ." 'ZZ_QRCODE_SWISSQR'.
+
+  CALL METHOD me->upload_to_bds
+    EXPORTING
+      i_bitmap   = i_bitmap1
+      i_tdobject = e_object
+      i_tdid     = e_id
+      i_tdbtype  = e_btype
+    CHANGING
+      c_tdname   = e_bds_name1.
+
+ENDMETHOD.

@@ -1,0 +1,53 @@
+
+method CALCULATE_MOD_SIZE.
+
+  DATA: lv_mimetype TYPE string.
+  DATA: lv_xres TYPE i.
+  DATA: lv_yres TYPE i.
+  DATA: lv_xdpi TYPE i.
+  DATA: lv_ydpi TYPE i.
+  DATA: lv_bitdepth TYPE i.
+  DATA: l_new_module_size TYPE i.
+  DATA: l_diff TYPE i.
+  DATA: l_height TYPE i VALUE 1087.
+  DATA: lr_ip TYPE REF TO cl_fxs_image_processor.
+  DATA: lv_hndl TYPE i.
+
+  e_size_ok = abap_false.
+  CHECK i_bitmap IS NOT INITIAL.
+
+* get FXS-object
+  CREATE OBJECT lr_ip.
+
+* add picture to fxs processor
+  lv_hndl = lr_ip->add_image( iv_data = i_bitmap ).
+
+* get picture info
+  lr_ip->get_info(
+    EXPORTING
+     iv_handle   = lv_hndl
+    IMPORTING
+     ev_mimetype = lv_mimetype
+     ev_xres     = lv_xres
+     ev_yres     = lv_yres
+     ev_xdpi     = lv_xdpi
+     ev_ydpi     = lv_ydpi
+     ev_bitdepth = lv_bitdepth ).
+
+* free FXS-object
+  lr_ip->discard_image( iv_handle = lv_hndl ).
+
+  FREE lr_ip.
+
+* The QR-code was created with module size 10.
+* The desired height is 1087 pixels for a print size of 46mm at 600dpi resolution.
+  l_new_module_size = c_module_size * 1087 / lv_yres.
+
+  l_diff = abs( l_new_module_size - c_module_size ).
+  IF l_diff > 1.
+*	allow a difference of 1 for the new modulesize
+    c_module_size = l_new_module_size.
+  ELSE.
+    e_size_ok = abap_true.
+  ENDIF.
+endmethod.
