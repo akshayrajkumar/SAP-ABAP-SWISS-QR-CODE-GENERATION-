@@ -1,4 +1,6 @@
 # SAP-ABAP-SWISS-QR-CODE-GENERATION-
+
+Note: this is an implementation of note 
 To Create QR code for SWISS Market with Swiss Cross by superimposing the Swiss Cross Image with  QR Image in Smartforms
 create a global class with the methods that is shown in the image CLASS_METHODS.
 Use the method GET_QR_STRING to GEnerate the Data that is supposed to be displayed in the QR and then pass it to the method GET_QRIMAGE as input.
