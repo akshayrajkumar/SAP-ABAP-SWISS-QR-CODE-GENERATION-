@@ -5,5 +5,9 @@ Use the method GET_QR_STRING to GEnerate the Data that is supposed to be display
 Create the methods with Parameters as shown in the images with _PARAMS in the upload sections
 once the qr string is generated pass it to METHOD GET_QRIMAGE where you get the QR CODE with the data generated is converted as Image and uploaded into BDS with the name that is mentioned inside the CONSTRUCTOR.
 the placement of the logic should be before calling the Smartforms and after the smartform call the method DELETE_QR_BITMAPS_BDS is called to delete the uploaded image to avoide unwanted memory that is stored in the system
+IN SMARTFORMS:
 And in the smartform create two windows as secondary window for QR image and SWISS CROSS image respectively.
-Follow the dimensions and positioning of the images as provided in the Screenshot swiss_qr_image and Swiss_cross and superimpose the image swiss_cross on swiss QR.
+Follow the dimensions and positioning of the images as provided in the Screenshot swiss_qr_image and Swiss_cross_image and superimpose the image swiss_cross on swiss QR.
+add graphic node inside the both windows and for QR Image follow the attribures found in Swiss_QR_img_attributes.
+for the swiss Cross image, upload the image in SE78 and use the attributes for graphics from the config in SE78.
+
